@@ -50,7 +50,7 @@ function drawSidebar() {
   bind(sb, {
     nav: (el) => { go(el.dataset.key); closeMenu(); },
     pwd: () => changePasswordModal(false),
-    logout: async () => { await api('/auth/logout', { method: 'POST', noRedirect: true }).catch(() => {}); location.href = '/'; },
+    logout: async () => { const schoolCode = user && user.school && user.school.code; await api('/auth/logout', { method: 'POST', noRedirect: true }).catch(() => {}); location.href = schoolCode ? `/e/${encodeURIComponent(schoolCode)}` : '/'; },
   });
   subscriptionBanner();
 }
