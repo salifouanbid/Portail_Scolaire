@@ -138,37 +138,52 @@ router.delete('/classes/:id', ah(async (req, res) => {
 }));
 
 /* ---------- Coefficients (par niveau et, si besoin, par série) ---------- */
-router.get('/coefficients', (req, res) => {
+router.get('/coefficients', ah(async (req, res) => {
+  if (isPostgres()) {
+    const level = await mustAsync('levels', req.query.level_id, S(req), 'Niveau');
+    let seriesId = null;
+    if (req.query.series_id) seriesId = (await mustAsync('series', req.query.series_id, S(req), 'Série')).id;
+    const rows = await db.many(`SELECT sub.id AS subject_id, sub.name, c.coef
+      FROM subjects sub
+      LEFT JOIN coefficients c ON c.subject_id = sub.id AND c.level_id = $1 AND c.series_id IS NOT DISTINCT FROM $2
+      WHERE sub.school_id = $3 ORDER BY sub.name`, [level.id, seriesId, S(req)]);
+    return res.json({ items: rows });
+  }
   const level = must('levels', req.query.level_id, S(req), 'Niveau');
   let seriesId = null;
   if (req.query.series_id) seriesId = must('series', req.query.series_id, S(req), 'Série').id;
-  const rows = db
-    .prepare(
-      `SELECT sub.id AS subject_id, sub.name, c.coef
-       FROM subjects sub
-       LEFT JOIN coefficients c ON c.subject_id = sub.id AND c.level_id = ? AND IFNULL(c.series_id, 0) = ?
-       WHERE sub.school_id = ? ORDER BY sub.name`
-    )
-    .all(level.id, seriesId || 0, S(req));
+  const rows = db.prepare(`SELECT sub.id AS subject_id, sub.name, c.coef FROM subjects sub LEFT JOIN coefficients c ON c.subject_id=sub.id AND c.level_id=? AND IFNULL(c.series_id,0)=? WHERE sub.school_id=? ORDER BY sub.name`).all(level.id, seriesId || 0, S(req));
   res.json({ items: rows });
-});
-router.put('/coefficients', (req, res) => {
+}));
+router.put('/coefficients', ah(async (req, res) => {
+  if (isPostgres()) {
+    const level = await mustAsync('levels', req.body && req.body.level_id, S(req), 'Niveau');
+    let seriesId = null;
+    if (req.body && req.body.series_id) seriesId = (await mustAsync('series', req.body.series_id, S(req), 'Série')).id;
+    const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+    if (items.length > 500) throw bad('Trop de coefficients envoyés');
+    await db.transaction(async (tx) => {
+      for (const it of items) {
+        const subjectId = intOrNull(it.subject_id);
+        const subject = await tx.maybeOne('SELECT * FROM subjects WHERE id = $1 AND school_id = $2', [subjectId, S(req)]);
+        if (!subject) throw bad('Matière introuvable');
+        await tx.execute('DELETE FROM coefficients WHERE school_id = $1 AND level_id = $2 AND series_id IS NOT DISTINCT FROM $3 AND subject_id = $4', [S(req), level.id, seriesId, subject.id]);
+        const empty = it.coef === null || it.coef === '' || it.coef === undefined;
+        const coef = Number(it.coef);
+        if (empty || coef === 0) continue;
+        if (!Number.isFinite(coef) || !(coef > 0 && coef <= 20)) throw bad(`Coefficient invalide pour ${subject.name}`);
+        await tx.execute('INSERT INTO coefficients (school_id, level_id, series_id, subject_id, coef) VALUES ($1,$2,$3,$4,$5)', [S(req), level.id, seriesId, subject.id, coef]);
+      }
+    });
+    return res.json({ ok: true });
+  }
   const level = must('levels', req.body.level_id, S(req), 'Niveau');
   let seriesId = null;
   if (req.body.series_id) seriesId = must('series', req.body.series_id, S(req), 'Série').id;
   const items = Array.isArray(req.body.items) ? req.body.items : [];
-  db.transaction(() => {
-    for (const it of items) {
-      const subject = must('subjects', it.subject_id, S(req), 'Matière');
-      db.prepare('DELETE FROM coefficients WHERE school_id = ? AND level_id = ? AND IFNULL(series_id,0) = ? AND subject_id = ?').run(S(req), level.id, seriesId || 0, subject.id);
-      const coef = Number(it.coef);
-      if (it.coef === null || it.coef === '' || it.coef === undefined || coef === 0) continue;
-      if (!(coef > 0 && coef <= 20)) throw bad(`Coefficient invalide pour ${subject.name}`);
-      db.prepare('INSERT INTO coefficients (school_id, level_id, series_id, subject_id, coef) VALUES (?,?,?,?,?)').run(S(req), level.id, seriesId, subject.id, coef);
-    }
-  })();
+  db.transaction(() => { for (const it of items) { const subject = must('subjects', it.subject_id, S(req), 'Matière'); db.prepare('DELETE FROM coefficients WHERE school_id=? AND level_id=? AND IFNULL(series_id,0)=? AND subject_id=?').run(S(req), level.id, seriesId || 0, subject.id); const coef=Number(it.coef); if (it.coef===null||it.coef===''||it.coef===undefined||coef===0) continue; if (!(coef>0&&coef<=20)) throw bad(`Coefficient invalide pour ${subject.name}`); db.prepare('INSERT INTO coefficients(school_id,level_id,series_id,subject_id,coef) VALUES(?,?,?,?,?)').run(S(req),level.id,seriesId,subject.id,coef); }})();
   res.json({ ok: true });
-});
+}));
 
 /* ---------- Trimestres ---------- */
 router.get('/terms', ah(async (req, res) => {
