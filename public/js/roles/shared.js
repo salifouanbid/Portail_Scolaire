@@ -8,16 +8,44 @@ async function loadDashboard(base, termId) {
   return api(`${base}/dashboard${qs({ term_id: termId, lang: getLang() })}`);
 }
 
+// PostgreSQL renvoie les notes à plat pour éviter de recalculer un bulletin
+// côté serveur. On les regroupe ici dans le même format que l'ancien rapport
+// SQLite afin que l'élève et le parent voient exactement les mêmes notes.
+function reportFromGrades(d) {
+  if (d.report) return d.report;
+  const grouped = new Map();
+  (d.grades || []).forEach((g) => {
+    const key = String(g.subject_id);
+    if (!grouped.has(key)) grouped.set(key, { name: g.subject_name, coef: Number(g.coef) || 1, interros: Array(6).fill(null), devoirs: Array(2).fill(null) });
+    const subject = grouped.get(key);
+    const index = Number(g.idx) - 1;
+    if (g.type === 'interro' && index >= 0 && index < 6) subject.interros[index] = Number(g.value);
+    if (g.type === 'devoir' && index >= 0 && index < 2) subject.devoirs[index] = Number(g.value);
+  });
+  const subjects = [...grouped.values()].map((s) => {
+    const interros = s.interros.filter((v) => v !== null && Number.isFinite(v));
+    const devoirs = s.devoirs.filter((v) => v !== null && Number.isFinite(v));
+    const parts = [];
+    if (interros.length) parts.push(interros.reduce((a, v) => a + v, 0) / interros.length);
+    parts.push(...devoirs);
+    return { ...s, avg: parts.length ? parts.reduce((a, v) => a + v, 0) / parts.length : null, class_avg: null };
+  });
+  const available = subjects.filter((s) => s.avg !== null);
+  const totalCoef = available.reduce((sum, s) => sum + s.coef, 0);
+  const general = totalCoef ? available.reduce((sum, s) => sum + s.avg * s.coef, 0) / totalCoef : null;
+  return { subjects, general, rank: null, class_size: null, class_avg: null, class_max: null, class_min: null, appreciation: null };
+}
+
 export async function dashboardView(root, base) {
   let termId = null;
   const draw = async () => {
     const d = await loadDashboard(base, termId);
-    if (!d.term || !d.report) {
+    if (!d.term) {
       setHtml(root, h`${pageHead(T('Tableau de bord', 'Dashboard'))}<div class="card empty">${T("Aucune période n'est encore ouverte.", 'No term is open yet.')}</div>`);
       return;
     }
     termId = d.term.id;
-    const r = d.report;
+    const r = reportFromGrades(d);
     const canBulletin = d.bulletin_min_avg === null || (r.general !== null && r.general >= d.bulletin_min_avg);
     setHtml(root, h`
       ${pageHead(h`${d.student.first_name} ${d.student.last_name} <span class="muted small">— ${d.student.class_name}</span>`,
@@ -46,9 +74,9 @@ export async function gradesView(root, base) {
   let termId = null;
   const draw = async () => {
     const d = await loadDashboard(base, termId);
-    if (!d.term || !d.report) { setHtml(root, h`${pageHead(T('Détail des notes', 'Grade details'))}<div class="card empty">${T('Aucune note pour le moment.', 'No grades yet.')}</div>`); return; }
+    if (!d.term) { setHtml(root, h`${pageHead(T('Détail des notes', 'Grade details'))}<div class="card empty">${T('Aucune période disponible.', 'No term available yet.')}</div>`); return; }
     termId = d.term.id;
-    const r = d.report;
+    const r = reportFromGrades(d);
     const cell = (v) => (v === null || v === undefined ? h`<td class="num muted">·</td>` : h`<td class="num"><span class="txt-${colorOf(v)}">${fmt(v)}</span></td>`);
     setHtml(root, h`
       ${pageHead(T('Détail des notes', 'Grade details'), h`<select aria-label="term">${termOptions(d.terms, termId)}</select>`)}
