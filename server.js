@@ -75,7 +75,20 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Route introuvable' 
 const publicDir = path.join(__dirname, 'public');
 app.get('/e/:code', (req, res) => res.sendFile(path.join(publicDir, 'school.html'))); // site vitrine public de l'établissement
 app.get('/e/:code/connexion', (req, res) => res.sendFile(path.join(publicDir, 'login.html'))); // connexion
-app.use(express.static(publicDir, { extensions: ['html'] }));
+app.use(express.static(publicDir, {
+  extensions: ['html'],
+  setHeaders: (res, filePath) => {
+    // Les ressources statiques versionnées par le déploiement peuvent rester
+    // en cache : cela évite de retélécharger CSS, JS et images à chaque visite.
+    if (/\.(?:css|js|webp|jpg|jpeg|png|svg|ico|woff2?)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    } else if (/\.html$/i.test(filePath)) {
+      // Les pages HTML restent revalidables afin de prendre immédiatement les
+      // changements de navigation après un nouveau déploiement.
+      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+    }
+  },
+}));
 
 /* ---------- Erreurs ---------- */
 app.use((err, req, res, next) => {
