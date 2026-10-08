@@ -73,7 +73,7 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Route introuvable' 
 
 /* ---------- Pages ---------- */
 const publicDir = path.join(__dirname, 'public');
-app.get('/sw.js', (req, res) => res.sendFile(path.join(publicDir, 'sw.js')));
+app.get('/portail-cache.js', (req, res) => res.sendFile(path.join(publicDir, 'portail-cache.js')));
 app.get('/e/:code', (req, res) => res.sendFile(path.join(publicDir, 'school.html'))); // site vitrine public de l'établissement
 app.get('/e/:code/connexion', (req, res) => res.sendFile(path.join(publicDir, 'login.html'))); // connexion
 app.use(express.static(publicDir, {

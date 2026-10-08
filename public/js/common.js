@@ -67,7 +67,7 @@ export function fmtDate(d) {
 export const todayStr = () => new Date().toISOString().slice(0, 10);
 export const colorOf = (v) => (v === null || v === undefined ? 'none' : v >= 14 ? 'green' : v >= 10 ? 'blue' : 'red');
 export const fileSize = (b) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' Mo' : Math.max(1, Math.round(b / 1024)) + ' Ko');
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/portail-cache.js', { updateViaCache: 'none' }).catch(() => {});
 
 /* ================= API ================= */
 let currentUserId = null;
