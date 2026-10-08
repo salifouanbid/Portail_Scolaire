@@ -7,6 +7,17 @@
       "includeFiles": "public/**"
     }
   },
+  "headers": [
+    {
+      "source": "/(.*\\.(css|js|webp|jpg|jpeg|png|svg|ico|woff2?))",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=86400"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index.js" }
   ]
