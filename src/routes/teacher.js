@@ -209,6 +209,7 @@ if (isPostgres()) {
 }
 
 
+if (!isPostgres()) {
 router.get('/archives', (req, res) => {
   const { classId, subjectId } = assertAssigned(req, req.query.class_id, req.query.subject_id);
   res.json({ items: db.prepare('SELECT id, title, original_name, size, created_at FROM archives WHERE school_id = ? AND class_id = ? AND subject_id = ? ORDER BY created_at DESC').all(S(req), classId, subjectId) });
@@ -268,5 +269,7 @@ router.get('/classes/:classId/students', (req, res) => {
   const { classId } = assertAssigned(req, req.params.classId, null);
   res.json({ items: classStudents(req, classId) });
 });
+
+}
 
 module.exports = router;

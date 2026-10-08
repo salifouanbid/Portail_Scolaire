@@ -324,6 +324,7 @@ if (isPostgres()) {
   router.get('/announcements', ah(async(req,res)=>{const items=await db.many('SELECT id,title,body,category,audience,event_date,pinned,created_at FROM announcements WHERE school_id=$1 ORDER BY pinned DESC,created_at DESC,id DESC LIMIT 200',[S(req)]);const imgs=await db.many('SELECT announcement_id,id,file_name,position FROM announcement_images WHERE school_id=$1 ORDER BY position,id',[S(req)]);items.forEach(a=>{a.images=imgs.filter(i=>Number(i.announcement_id)===Number(a.id));});res.json({items,max_images:MAX_IMAGES});}));
 }
 
+if (!isPostgres()) {
 router.put('/parents/:id/children', (req, res) => {
   const p = targetUser(req);
   if (p.role !== 'parent') throw bad('Ce compte n\'est pas un parent');
@@ -535,5 +536,7 @@ router.put('/settings', (req, res) => {
     .run(name, str(b.city, 80), str(b.academic_year, 20), min, typeof b.description === 'string' ? b.description.trim().slice(0, 2000) : '', str(b.address, 200), str(b.phone, 60), email, str(b.hours, 200), S(req));
   res.json({ ok: true });
 });
+
+}
 
 module.exports = router;

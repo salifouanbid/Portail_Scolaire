@@ -38,6 +38,7 @@ if (isPostgres()) {
 }
 
 
+if (!isPostgres()) {
 // Envoi d'un justificatif d'absence (fichier facultatif)
 router.post('/children/:studentId/justifications', uploadProof.single('file'), (req, res) => {
   const file = req.file;
@@ -62,5 +63,7 @@ router.post('/children/:studentId/justifications', uploadProof.single('file'), (
     throw e;
   }
 });
+
+}
 
 module.exports = router;
