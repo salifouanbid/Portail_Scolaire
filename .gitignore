@@ -6,3 +6,6 @@ uploads/*
 !uploads/.gitkeep
 *.log
 backups/
+
+.vercel
+.env*
