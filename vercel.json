@@ -9,12 +9,6 @@
   },
   "headers": [
     {
-      "source": "/(.*\\.(css|js))",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
-      ]
-    },
-    {
       "source": "/(.*\\.(webp|jpg|jpeg|png|svg|ico|woff2?))",
       "headers": [
         {
