@@ -3,6 +3,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 
 const config = require('./src/config');
 const db = require('./src/db');
@@ -18,6 +19,7 @@ const app = express();
 app.disable('x-powered-by');
 if (config.trustProxy) app.set('trust proxy', config.trustProxy); // derrière Nginx / hébergeur (HTTPS)
 
+app.use(compression()); // gzip/brotli des réponses : pages et JSON plus légers = site plus rapide
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -73,7 +75,6 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Route introuvable' 
 
 /* ---------- Pages ---------- */
 const publicDir = path.join(__dirname, 'public');
-app.get('/portail-cache.js', (req, res) => res.sendFile(path.join(publicDir, 'portail-cache.js')));
 app.get('/e/:code', (req, res) => res.sendFile(path.join(publicDir, 'school.html'))); // site vitrine public de l'établissement
 app.get('/e/:code/connexion', (req, res) => res.sendFile(path.join(publicDir, 'login.html'))); // connexion
 app.use(express.static(publicDir, {
@@ -81,7 +82,11 @@ app.use(express.static(publicDir, {
   setHeaders: (res, filePath) => {
     // Les ressources statiques versionnées par le déploiement peuvent rester
     // en cache : cela évite de retélécharger CSS, JS et images à chaque visite.
-    if (/\.(?:css|js|webp|jpg|jpeg|png|svg|ico|woff2?)$/i.test(filePath)) {
+    if (/\.(?:css|js)$/i.test(filePath)) {
+      // CSS/JS non versionnés : cache court (5 min) puis revalidation (ETag, 304 si inchangé) :
+      // rapide pour les visiteurs, mais un correctif arrive en quelques minutes au lieu de 7 jours.
+      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+    } else if (/\.(?:webp|jpg|jpeg|png|svg|ico|woff2?)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
     } else if (/\.html$/i.test(filePath)) {
       // Les pages HTML restent revalidables afin de prendre immédiatement les

@@ -15,6 +15,29 @@ function positiveInt(value, fallback, name) {
   return parsed;
 }
 
+// TLS vers Supabase. Avec DATABASE_SSL_CA (certificat racine Supabase, en PEM ou en
+// base64) la connexion vérifie le certificat du serveur : protection contre
+// l'interception. Sans ce certificat, on garde l'ancien comportement (chiffré mais
+// non vérifié) pour ne pas couper le site, avec un avertissement dans les logs.
+let sslWarned = false;
+function sslConfig(env) {
+  let ca = String(env.DATABASE_SSL_CA || '').trim();
+  if (ca) {
+    if (!ca.includes('BEGIN CERTIFICATE')) {
+      try { ca = Buffer.from(ca, 'base64').toString('utf8'); } catch (_) { /* valeur invalide, contrôlée ci-dessous */ }
+    }
+    if (!ca.includes('BEGIN CERTIFICATE')) {
+      throw new Error('DATABASE_SSL_CA doit contenir un certificat PEM (ou son encodage base64)');
+    }
+    return { ca, rejectUnauthorized: true };
+  }
+  if (!sslWarned) {
+    sslWarned = true;
+    console.warn('[sécurité] DATABASE_SSL_CA absent : le certificat de la base n\'est pas vérifié. Voir .env.example.');
+  }
+  return { rejectUnauthorized: false };
+}
+
 function postgresConfig(env = process.env) {
   // Les interfaces de déploiement copient parfois la valeur avec des guillemets
   // ou avec le nom de variable (`DATABASE_URL=postgresql://...`).
@@ -44,9 +67,7 @@ function postgresConfig(env = process.env) {
 
   return {
     connectionString: normalizedConnectionString,
-    // Supabase exige TLS et certains certificats de pooler ne sont pas présents
-    // dans le bundle CA de la fonction serverless.
-    ssl: { rejectUnauthorized: false },
+    ssl: sslConfig(env),
     // Supabase recommande une connexion applicative très petite avec son pooler
     // transactionnel. La valeur reste configurable pour un serveur persistant.
     max: positiveInt(env.DATABASE_POOL_MAX, 1, 'DATABASE_POOL_MAX'),
@@ -142,4 +163,4 @@ function createPostgresDatabase(options = {}) {
   return new PostgresDatabase(pool);
 }
 
-module.exports = { PostgresDatabase, createPostgresDatabase, postgresConfig };
+module.exports = { sslConfig, PostgresDatabase, createPostgresDatabase, postgresConfig };
