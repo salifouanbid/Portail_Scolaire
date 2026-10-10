@@ -9,7 +9,7 @@
   },
   "headers": [
     {
-      "source": "/(.*\\.(webp|jpg|jpeg|png|svg|ico|woff2?))",
+      "source": "/(.*)\\.(webp|jpg|jpeg|png|svg|ico|woff2?))",
       "headers": [
         {
           "key": "Cache-Control",
