@@ -1,0 +1,414 @@
+diff --git a/.env.example b/.env.example
+index 4137b3f..8dcc985 100644
+--- a/.env.example
++++ b/.env.example
+@@ -47,3 +47,9 @@ WHATSAPP_ACCESS_TOKEN=
+ WHATSAPP_PHONE_NUMBER_ID=
+ WHATSAPP_BUSINESS_NUMBER=
+ WHATSAPP_TEMPLATE_ABSENCE=school_absence_alert
++
++# --- Vérification du certificat TLS de la base Supabase (recommandé en production) ---
++# Supabase > Project Settings > Database > SSL Configuration > « Download certificate ».
++# Colle le contenu du fichier .crt (PEM) ou son encodage base64 :  base64 -w0 prod-ca-2021.crt
++# Sans cette variable la connexion reste chiffrée mais le certificat n'est pas vérifié.
++DATABASE_SSL_CA=
+diff --git a/package-lock.json b/package-lock.json
+index ad1d442..6ff8ffa 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -10,6 +10,7 @@
+       "license": "UNLICENSED",
+       "dependencies": {
+         "bcryptjs": "^3.0.3",
++        "compression": "^1.8.2",
+         "cookie-parser": "^1.4.7",
+         "dotenv": "^18.0.1",
+         "express": "^4.22.3",
+@@ -226,6 +227,50 @@
+         "node": ">=0.8"
+       }
+     },
++    "node_modules/compressible": {
++      "version": "2.0.18",
++      "resolved": "https://registry.npmjs.org/compressible/-/compressible-2.0.18.tgz",
++      "integrity": "sha512-AF3r7P5dWxL8MxyITRMlORQNaOA2IkAFaTr4k7BUumjPtRpGDTZpl0Pb1XCO6JeDCBdp126Cgs9sMxqSjgYyRg==",
++      "license": "MIT",
++      "dependencies": {
++        "mime-db": ">= 1.43.0 < 2"
++      },
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/compression": {
++      "version": "1.8.2",
++      "resolved": "https://registry.npmjs.org/compression/-/compression-1.8.2.tgz",
++      "integrity": "sha512-o8vI5RE5A6EVVOd9o41jKp41aJom+QTEO/Bx8MYNjexMo/Bv2WOjUfZr+aL0WnYSgymUy6zeguqLTsIhV0gMvQ==",
++      "license": "MIT",
++      "dependencies": {
++        "bytes": "3.1.2",
++        "compressible": "~2.0.18",
++        "debug": "2.6.9",
++        "destroy": "1.2.0",
++        "negotiator": "~0.6.4",
++        "on-headers": "~1.1.0",
++        "safe-buffer": "5.2.1",
++        "vary": "~1.1.2"
++      },
++      "engines": {
++        "node": ">= 0.8.0"
++      },
++      "funding": {
++        "type": "opencollective",
++        "url": "https://opencollective.com/express"
++      }
++    },
++    "node_modules/compression/node_modules/negotiator": {
++      "version": "0.6.4",
++      "resolved": "https://registry.npmjs.org/negotiator/-/negotiator-0.6.4.tgz",
++      "integrity": "sha512-myRT3DiWPHqho5PrJaIRyaMv2kgYf0mUVgBNOYMuCH5Ki1yEiQaf/ZJuQ62nvpc44wL5WDbTX7yGJi1Neevw8w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
+     "node_modules/content-disposition": {
+       "version": "0.5.4",
+       "resolved": "https://registry.npmjs.org/content-disposition/-/content-disposition-0.5.4.tgz",
+@@ -965,6 +1010,15 @@
+         "node": ">= 0.8"
+       }
+     },
++    "node_modules/on-headers": {
++      "version": "1.1.0",
++      "resolved": "https://registry.npmjs.org/on-headers/-/on-headers-1.1.0.tgz",
++      "integrity": "sha512-737ZY3yNnXy37FHkQxPzt4UZ2UWPWiCZWLvFZ4fu5cueciegX0zGPnrlY6bwRg4FdQOe9YU8MkmJwGhoMybl8A==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.8"
++      }
++    },
+     "node_modules/pako": {
+       "version": "0.2.9",
+       "resolved": "https://registry.npmjs.org/pako/-/pako-0.2.9.tgz",
+diff --git a/package.json b/package.json
+index 138d50c..9ee9636 100644
+--- a/package.json
++++ b/package.json
+@@ -19,6 +19,7 @@
+   "private": true,
+   "dependencies": {
+     "bcryptjs": "^3.0.3",
++    "compression": "^1.8.2",
+     "cookie-parser": "^1.4.7",
+     "dotenv": "^18.0.1",
+     "express": "^4.22.3",
+diff --git a/server.js b/server.js
+index 64cb3d8..416f66e 100644
+--- a/server.js
++++ b/server.js
+@@ -3,6 +3,7 @@ const express = require('express');
+ const helmet = require('helmet');
+ const cookieParser = require('cookie-parser');
+ const rateLimit = require('express-rate-limit');
++const compression = require('compression');
+ 
+ const config = require('./src/config');
+ const db = require('./src/db');
+@@ -18,6 +19,7 @@ const app = express();
+ app.disable('x-powered-by');
+ if (config.trustProxy) app.set('trust proxy', config.trustProxy); // derrière Nginx / hébergeur (HTTPS)
+ 
++app.use(compression()); // gzip/brotli des réponses : pages et JSON plus légers = site plus rapide
+ app.use(
+   helmet({
+     contentSecurityPolicy: {
+@@ -73,7 +75,6 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Route introuvable'
+ 
+ /* ---------- Pages ---------- */
+ const publicDir = path.join(__dirname, 'public');
+-app.get('/portail-cache.js', (req, res) => res.sendFile(path.join(publicDir, 'portail-cache.js')));
+ app.get('/e/:code', (req, res) => res.sendFile(path.join(publicDir, 'school.html'))); // site vitrine public de l'établissement
+ app.get('/e/:code/connexion', (req, res) => res.sendFile(path.join(publicDir, 'login.html'))); // connexion
+ app.use(express.static(publicDir, {
+@@ -81,7 +82,11 @@ app.use(express.static(publicDir, {
+   setHeaders: (res, filePath) => {
+     // Les ressources statiques versionnées par le déploiement peuvent rester
+     // en cache : cela évite de retélécharger CSS, JS et images à chaque visite.
+-    if (/\.(?:css|js|webp|jpg|jpeg|png|svg|ico|woff2?)$/i.test(filePath)) {
++    if (/\.(?:css|js)$/i.test(filePath)) {
++      // CSS/JS non versionnés : cache court (5 min) puis revalidation (ETag, 304 si inchangé) :
++      // rapide pour les visiteurs, mais un correctif arrive en quelques minutes au lieu de 7 jours.
++      res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
++    } else if (/\.(?:webp|jpg|jpeg|png|svg|ico|woff2?)$/i.test(filePath)) {
+       res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+     } else if (/\.html$/i.test(filePath)) {
+       // Les pages HTML restent revalidables afin de prendre immédiatement les
+diff --git a/src/persistence/postgres.js b/src/persistence/postgres.js
+index 228b652..3c41c0b 100644
+--- a/src/persistence/postgres.js
++++ b/src/persistence/postgres.js
+@@ -15,6 +15,29 @@ function positiveInt(value, fallback, name) {
+   return parsed;
+ }
+ 
++// TLS vers Supabase. Avec DATABASE_SSL_CA (certificat racine Supabase, en PEM ou en
++// base64) la connexion vérifie le certificat du serveur : protection contre
++// l'interception. Sans ce certificat, on garde l'ancien comportement (chiffré mais
++// non vérifié) pour ne pas couper le site, avec un avertissement dans les logs.
++let sslWarned = false;
++function sslConfig(env) {
++  let ca = String(env.DATABASE_SSL_CA || '').trim();
++  if (ca) {
++    if (!ca.includes('BEGIN CERTIFICATE')) {
++      try { ca = Buffer.from(ca, 'base64').toString('utf8'); } catch (_) { /* valeur invalide, contrôlée ci-dessous */ }
++    }
++    if (!ca.includes('BEGIN CERTIFICATE')) {
++      throw new Error('DATABASE_SSL_CA doit contenir un certificat PEM (ou son encodage base64)');
++    }
++    return { ca, rejectUnauthorized: true };
++  }
++  if (!sslWarned) {
++    sslWarned = true;
++    console.warn('[sécurité] DATABASE_SSL_CA absent : le certificat de la base n\'est pas vérifié. Voir .env.example.');
++  }
++  return { rejectUnauthorized: false };
++}
++
+ function postgresConfig(env = process.env) {
+   // Les interfaces de déploiement copient parfois la valeur avec des guillemets
+   // ou avec le nom de variable (`DATABASE_URL=postgresql://...`).
+@@ -44,9 +67,7 @@ function postgresConfig(env = process.env) {
+ 
+   return {
+     connectionString: normalizedConnectionString,
+-    // Supabase exige TLS et certains certificats de pooler ne sont pas présents
+-    // dans le bundle CA de la fonction serverless.
+-    ssl: { rejectUnauthorized: false },
++    ssl: sslConfig(env),
+     // Supabase recommande une connexion applicative très petite avec son pooler
+     // transactionnel. La valeur reste configurable pour un serveur persistant.
+     max: positiveInt(env.DATABASE_POOL_MAX, 1, 'DATABASE_POOL_MAX'),
+@@ -142,4 +163,4 @@ function createPostgresDatabase(options = {}) {
+   return new PostgresDatabase(pool);
+ }
+ 
+-module.exports = { PostgresDatabase, createPostgresDatabase, postgresConfig };
++module.exports = { sslConfig, PostgresDatabase, createPostgresDatabase, postgresConfig };
+diff --git a/src/routes/studentViews.js b/src/routes/studentViews.js
+index 7d6a587..118e99a 100644
+--- a/src/routes/studentViews.js
++++ b/src/routes/studentViews.js
+@@ -7,6 +7,7 @@ const config = require('../config');
+ const isPostgres = () => config.databaseProvider === 'postgres';
+ const { buildReport, evolution } = require('../services/reports');
+ const { streamBulletin } = require('../services/pdf');
++const reportsPg = require('../services/reportsPg');
+ 
+ function studentViews(resolve) {
+   const r = express.Router({ mergeParams: true });
+@@ -111,7 +112,36 @@ function studentViews(resolve) {
+   }
+ 
+   if (isPostgres()) {
+-    r.get('/dashboard', ah(async(req,res)=>{const terms=await db.many("SELECT id,name,status FROM terms WHERE school_id=$1 AND status!='upcoming' ORDER BY position",[S(req)]);const wanted=intOrNull(req.query.term_id);const term=terms.find(t=>Number(t.id)===wanted)||terms.find(t=>t.status==='open')||terms[terms.length-1]||null;const student=await db.maybeOne('SELECT s.id,s.matricule,u.first_name,u.last_name,c.name AS class_name FROM students s JOIN users u ON u.id=s.user_id JOIN classes c ON c.id=s.class_id WHERE s.id=$1 AND s.school_id=$2',[req.studentId,S(req)]);if(!term)return res.json({student,terms,term:null,report:null,evolution:[]});const grades=await db.many('SELECT g.subject_id,sub.name AS subject_name,g.type,g.idx,g.value FROM grades g JOIN subjects sub ON sub.id=g.subject_id WHERE g.school_id=$1 AND g.student_id=$2 AND g.term_id=$3 ORDER BY sub.name,g.type,g.idx',[S(req),req.studentId,term.id]);const attendance=await db.many("SELECT COUNT(*) FILTER(WHERE status='absent') AS absences,COUNT(*) FILTER(WHERE status='late') AS late FROM attendance WHERE school_id=$1 AND student_id=$2",[S(req),req.studentId]);res.json({student,terms,term,grades,attendance,evolution:[],bulletin_min_avg:req.user.role==='parent'?req.school.parent_bulletin_min_avg:null});}));
++    r.get('/dashboard', ah(async (req, res) => {
++      const terms = await db.many("SELECT id,name,status FROM terms WHERE school_id=$1 AND status!='upcoming' ORDER BY position", [S(req)]);
++      const wanted = intOrNull(req.query.term_id);
++      const term = terms.find((t) => Number(t.id) === wanted) || terms.find((t) => t.status === 'open') || terms[terms.length - 1] || null;
++      const student = await db.maybeOne('SELECT s.id,s.matricule,u.first_name,u.last_name,c.name AS class_name FROM students s JOIN users u ON u.id=s.user_id JOIN classes c ON c.id=s.class_id WHERE s.id=$1 AND s.school_id=$2', [req.studentId, S(req)]);
++      if (!term) return res.json({ student, terms, term: null, report: null, evolution: [] });
++      // Même format qu'en SQLite (report + evolution) : moyennes pondérées, rang, moyenne de classe.
++      const [report, evo] = await Promise.all([
++        reportsPg.buildReport(S(req), req.studentId, term.id, lang(req)),
++        reportsPg.evolution(S(req), req.studentId),
++      ]);
++      res.json({ student, terms, term, report, evolution: evo, bulletin_min_avg: req.user.role === 'parent' ? req.school.parent_bulletin_min_avg : null });
++    }));
++    r.get('/bulletin.pdf', ah(async (req, res) => {
++      const terms = await db.many("SELECT id,name,status FROM terms WHERE school_id=$1 AND status!='upcoming' ORDER BY position", [S(req)]);
++      const wanted = intOrNull(req.query.term_id);
++      const term = terms.find((t) => Number(t.id) === wanted) || terms.find((t) => t.status === 'open') || terms[terms.length - 1] || null;
++      if (!term) throw bad('Aucune période disponible');
++      const report = await reportsPg.buildReport(S(req), req.studentId, term.id, lang(req));
++      if (!report) throw notFound();
++      if (req.user.role === 'parent') {
++        const min = req.school.parent_bulletin_min_avg;
++        if (report.general === null || report.general < min) {
++          const e = new Error(`Le bulletin est réservé aux élèves ayant au moins ${min}/20 de moyenne`);
++          e.status = 403;
++          throw e;
++        }
++      }
++      streamBulletin(res, { school: req.school, report, lang: lang(req) });
++    }));
+     r.get('/attendance',ah(async(req,res)=>{const items=await db.many(`SELECT a.id,a.date,a.status,a.justified,sub.name AS subject_name,(SELECT j.id FROM justifications j WHERE j.attendance_id=a.id ORDER BY j.id DESC LIMIT 1) AS justification_id,(SELECT j.status FROM justifications j WHERE j.attendance_id=a.id ORDER BY j.id DESC LIMIT 1) AS justification_status FROM attendance a JOIN subjects sub ON sub.id=a.subject_id WHERE a.school_id=$1 AND a.student_id=$2 AND a.status!='present' ORDER BY a.date DESC,a.id DESC LIMIT 200`,[S(req),req.studentId]);const total=await db.maybeOne('SELECT COUNT(*) AS c FROM attendance WHERE school_id=$1 AND student_id=$2',[S(req),req.studentId]);res.json({items,total_recorded:Number(total.c)});}));
+     r.get('/programme',ah(async(req,res)=>{const st=await db.maybeOne('SELECT class_id FROM students WHERE id=$1 AND school_id=$2',[req.studentId,S(req)]);const chapters=await db.many('SELECT ch.id,ch.title,ch.status,sub.name AS subject_name FROM chapters ch JOIN subjects sub ON sub.id=ch.subject_id WHERE ch.school_id=$1 AND ch.class_id=$2 ORDER BY sub.name,ch.position,ch.id',[S(req),st.class_id]);const lessons=await db.many('SELECT l.id,l.date,l.content,l.homework,sub.name AS subject_name FROM lessons l JOIN subjects sub ON sub.id=l.subject_id WHERE l.school_id=$1 AND l.class_id=$2 ORDER BY l.date DESC,l.id DESC LIMIT 40',[S(req),st.class_id]);res.json({chapters,lessons});}));
+     r.get('/archives',ah(async(req,res)=>{const st=await db.maybeOne('SELECT class_id FROM students WHERE id=$1 AND school_id=$2',[req.studentId,S(req)]);const params=[S(req),st.class_id];let where='a.school_id=$1 AND a.class_id=$2';const sub=intOrNull(req.query.subject_id);if(sub!==null){params.push(sub);where+=` AND a.subject_id=$${params.length}`;}const items=await db.many(`SELECT a.id,a.title,a.original_name,a.size,a.created_at,sub.id AS subject_id,sub.name AS subject_name FROM archives a JOIN subjects sub ON sub.id=a.subject_id WHERE ${where} ORDER BY a.created_at DESC`,params);const subjects=await db.many('SELECT DISTINCT sub.id,sub.name FROM archives a JOIN subjects sub ON sub.id=a.subject_id WHERE a.school_id=$1 AND a.class_id=$2 ORDER BY sub.name',[S(req),st.class_id]);res.json({items,subjects});}));
+diff --git a/src/services/reportsPg.js b/src/services/reportsPg.js
+new file mode 100644
+index 0000000..c8dd790
+--- /dev/null
++++ b/src/services/reportsPg.js
+@@ -0,0 +1,133 @@
++// Version PostgreSQL de reports.js : mêmes calculs (moyennes, coefficients, rangs),
++// mais avec des requêtes asynchrones. Le tableau de bord et le bulletin PDF
++// affichent ainsi les mêmes résultats qu'en mode SQLite.
++const db = require('../db');
++const { round2, mean, subjectAverage, gradeColor, appreciation } = require('./grades');
++
++async function coefMapFor(schoolId, levelId, seriesId) {
++  const rows = await db.many(
++    'SELECT subject_id, series_id, coef FROM coefficients WHERE school_id=$1 AND level_id=$2 AND (series_id IS NULL OR series_id=$3)',
++    [schoolId, levelId, seriesId === null || seriesId === undefined ? -1 : seriesId]
++  );
++  const map = new Map();
++  rows.filter((r) => r.series_id === null).forEach((r) => map.set(r.subject_id, r.coef));
++  rows.filter((r) => r.series_id !== null).forEach((r) => map.set(r.subject_id, r.coef));
++  return map;
++}
++
++async function computeClass(schoolId, classId, termId) {
++  const cls = await db.maybeOne('SELECT * FROM classes WHERE id=$1 AND school_id=$2', [classId, schoolId]);
++  if (!cls) return null;
++  const coefMap = await coefMapFor(schoolId, cls.level_id, cls.series_id);
++  const students = await db.many(
++    'SELECT s.id, s.matricule, u.first_name, u.last_name FROM students s JOIN users u ON u.id=s.user_id WHERE s.school_id=$1 AND s.class_id=$2 AND u.active=true ORDER BY u.last_name, u.first_name',
++    [schoolId, classId]
++  );
++  const grades = await db.many(
++    'SELECT g.student_id, g.subject_id, g.type, g.idx, g.value FROM grades g JOIN students s ON s.id=g.student_id WHERE g.school_id=$1 AND g.term_id=$2 AND s.class_id=$3 ORDER BY g.idx',
++    [schoolId, termId, classId]
++  );
++
++  const bySt = new Map();
++  for (const g of grades) {
++    if (!bySt.has(g.student_id)) bySt.set(g.student_id, new Map());
++    const subs = bySt.get(g.student_id);
++    if (!subs.has(g.subject_id)) subs.set(g.subject_id, { interros: [], devoirs: [], i: [], d: [] });
++    const cell = subs.get(g.subject_id);
++    if (g.type === 'interro') { cell.interros.push(g.value); cell.i[g.idx - 1] = g.value; }
++    else { cell.devoirs.push(g.value); cell.d[g.idx - 1] = g.value; }
++  }
++
++  const result = new Map();
++  const subjectAvgs = new Map();
++  for (const st of students) {
++    const subs = bySt.get(st.id) || new Map();
++    const perSubject = new Map();
++    let pts = 0;
++    let coefSum = 0;
++    for (const [sid, cell] of subs) {
++      const avg = subjectAverage(cell.interros, cell.devoirs);
++      if (avg === null) continue;
++      const coef = coefMap.has(sid) ? coefMap.get(sid) : 1;
++      perSubject.set(sid, { ...cell, avg, coef });
++      pts += avg * coef;
++      coefSum += coef;
++      if (!subjectAvgs.has(sid)) subjectAvgs.set(sid, []);
++      subjectAvgs.get(sid).push(avg);
++    }
++    result.set(st.id, { student: st, subjects: perSubject, general: coefSum ? pts / coefSum : null, coefSum });
++  }
++
++  const generals = [...result.values()].map((r) => r.general).filter((g) => g !== null);
++  for (const r of result.values()) {
++    r.rank = r.general === null ? null : 1 + generals.filter((g) => g > r.general + 1e-9).length;
++  }
++  return {
++    cls, coefMap, students, results: result, ranked: generals.length,
++    classAvg: mean(generals),
++    classMin: generals.length ? Math.min(...generals) : null,
++    classMax: generals.length ? Math.max(...generals) : null,
++    subjectClassAvg: new Map([...subjectAvgs].map(([sid, arr]) => [sid, mean(arr)])),
++  };
++}
++
++async function buildReport(schoolId, studentId, termId, lang = 'fr') {
++  const st = await db.maybeOne(
++    'SELECT s.id, s.class_id, s.matricule, u.first_name, u.last_name FROM students s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.school_id=$2',
++    [studentId, schoolId]
++  );
++  if (!st) return null;
++  const term = await db.maybeOne('SELECT * FROM terms WHERE id=$1 AND school_id=$2', [termId, schoolId]);
++  if (!term) return null;
++  const data = await computeClass(schoolId, st.class_id, termId);
++  if (!data) return null;
++  const mine = data.results.get(st.id);
++  const subjectNames = new Map((await db.many('SELECT id, name FROM subjects WHERE school_id=$1', [schoolId])).map((s) => [s.id, s.name]));
++
++  const subjects = [...(mine ? mine.subjects : new Map())].map(([sid, c]) => ({
++    subject_id: sid,
++    name: subjectNames.get(sid) || '?',
++    coef: c.coef,
++    interros: c.i.map((v) => (v === undefined ? null : v)),
++    devoirs: c.d.map((v) => (v === undefined ? null : v)),
++    mi: round2(mean(c.interros)),
++    avg: round2(c.avg),
++    points: round2(c.avg * c.coef),
++    class_avg: round2(data.subjectClassAvg.get(sid) ?? null),
++    color: gradeColor(c.avg),
++  }));
++  subjects.sort((a, b) => a.name.localeCompare(b.name));
++
++  const general = mine && mine.general !== null ? round2(mine.general) : null;
++  return {
++    student: { id: st.id, first_name: st.first_name, last_name: st.last_name, matricule: st.matricule },
++    class: { id: data.cls.id, name: data.cls.name },
++    term: { id: term.id, name: term.name, status: term.status },
++    subjects,
++    total_coef: mine ? mine.coefSum : 0,
++    general,
++    color: gradeColor(general),
++    rank: mine ? mine.rank : null,
++    class_size: data.students.length,
++    ranked: data.ranked,
++    class_avg: round2(data.classAvg),
++    class_min: round2(data.classMin),
++    class_max: round2(data.classMax),
++    appreciation: appreciation(general, lang),
++  };
++}
++
++async function evolution(schoolId, studentId) {
++  const st = await db.maybeOne('SELECT class_id FROM students WHERE id=$1 AND school_id=$2', [studentId, schoolId]);
++  if (!st) return [];
++  const terms = await db.many("SELECT id, name FROM terms WHERE school_id=$1 AND status!='upcoming' ORDER BY position", [schoolId]);
++  const out = [];
++  for (const t of terms) {
++    const data = await computeClass(schoolId, st.class_id, t.id);
++    const r = data && data.results.get(studentId);
++    out.push({ term_id: t.id, name: t.name, general: r && r.general !== null ? round2(r.general) : null });
++  }
++  return out;
++}
++
++module.exports = { computeClass, buildReport, evolution };
+diff --git a/supabase/enable_rls_notification_tables.sql b/supabase/enable_rls_notification_tables.sql
+new file mode 100644
+index 0000000..e455fb3
+--- /dev/null
++++ b/supabase/enable_rls_notification_tables.sql
+@@ -0,0 +1,3 @@
++-- Déjà appliqué sur le projet Supabase le 10/10/2026 (trace pour le dépôt).
++ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
++ALTER TABLE public.notification_outbox ENABLE ROW LEVEL SECURITY;
+diff --git a/vercel.json b/vercel.json
+index 4392cf7..45b92bf 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -9,7 +9,13 @@
+   },
+   "headers": [
+     {
+-      "source": "/(.*\\.(css|js|webp|jpg|jpeg|png|svg|ico|woff2?))",
++      "source": "/(.*\\.(css|js))",
++      "headers": [
++        { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
++      ]
++    },
++    {
++      "source": "/(.*\\.(webp|jpg|jpeg|png|svg|ico|woff2?))",
+       "headers": [
+         {
+           "key": "Cache-Control",
