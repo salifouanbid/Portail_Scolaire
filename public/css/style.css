@@ -422,7 +422,7 @@ td.num, th.num { text-align: center; }
 .brand-name {
   font-size: 1.2rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #0fff0f;
 }
 .nav-container {
   display: flex;
@@ -447,7 +447,7 @@ td.num, th.num { text-align: center; }
   padding: 0.4rem 0;
 }
 .nav-item:hover, .nav-item.active, .dropdown-btn:hover {
-  color: #0f172a !important;
+  color: #0fff0f !important;
 }
 .dropdown {
   position: relative;
@@ -484,7 +484,7 @@ td.num, th.num { text-align: center; }
 .dropdown-item strong {
   display: block;
   font-size: 0.85rem;
-  color: #0f172a;
+  color: #0fff0f;
 }
 .dropdown-item p {
   margin: 0;
