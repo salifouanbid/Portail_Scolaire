@@ -1,0 +1,87 @@
+/* ==========================================================================
+   Thème « cahier d'école » : papier clair, encre verte, stylo rouge du prof.
+   Chargé APRÈS style.css et landing.css : il redéfinit les variables de
+   couleur et retire les effets (verre dépoli, dégradés, lueurs) qui rendaient
+   le site générique. Pour revenir à l'ancien style : retirer la ligne
+   <link href="/css/theme.css"> des fichiers .html.
+   ========================================================================== */
+@font-face {
+  font-family: "Bricolage"; src: url("/fonts/bricolage.woff2") format("woff2");
+  font-weight: 200 800; font-display: swap;
+}
+:root {
+  --bg: #f6f7f3; --bg2: #eef0ea; --navy: #0f2e22;
+  --text: #15251e; --muted: #5a6a62;
+  --cyan: #0f5c3e; --cyan-d: #0b4630;      /* accent principal : vert encre */
+  --gold: #e0a81a; --gold-d: #b98604;      /* marqueur jaune */
+  --green: #1f8a5b; --blue: #2f6f9f; --red: #c2362b; /* rouge du stylo du professeur */
+  --glass: #ffffff; --glass-2: #eef0ea; --line: rgba(21, 37, 30, .16);
+  --radius: 8px; --shadow: none;
+  --display: "Bricolage", "Segoe UI", system-ui, sans-serif;
+}
+body { background: var(--bg); background-image: none; }
+h1, h2, h3, .brand .name, .stat .num { font-family: var(--display); letter-spacing: -.01em; }
+h1 { font-weight: 700; }
+
+/* Cartes : papier blanc, simple filet — plus de verre dépoli ni d'ombre */
+.card { backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; background: #fff; border-radius: var(--radius); }
+.stat .num { color: var(--cyan); }
+.btn { border-radius: 6px; background: #fff; color: var(--text); }
+.btn:hover { background: var(--bg2); }
+.btn-primary { background: var(--cyan); color: #fff; border: 0; box-shadow: none; }
+.btn-primary:hover { background: var(--cyan-d); }
+.btn-gold { background: var(--gold); color: #2a1f00; border: 0; }
+.btn-danger { background: #fff; border-color: var(--red); color: var(--red); }
+.tab.active { background: var(--cyan); color: #fff; border-color: var(--cyan); }
+input, select, textarea { background: #fff; color: var(--text); border-color: var(--line); }
+select option { background: #fff; color: var(--text); }
+.notice { background: #fff7dc; border-color: #e6c75a; color: #5b4300; }
+.notice.info { background: #e8f3ed; border-color: #a9cdb9; color: #0b4630; }
+.modal-back { background: rgba(21, 37, 30, .55); backdrop-filter: none; }
+.modal { background: #fff; border-radius: 12px; }
+.toast { background: #fff; color: var(--text); border-radius: 6px; box-shadow: 0 4px 14px rgba(21,37,30,.18); }
+.progress > i { background: var(--cyan); }
+.dot { stroke: #fff; }
+.seg button.on-present { background: #d9efe3; color: #0b4630; }
+.seg button.on-absent { background: #f8d9d5; color: #8f241b; }
+.seg button.on-late { background: #fbeab5; color: #5b4300; }
+.lang button.active { background: var(--cyan); color: #fff; }
+
+/* Titres : plus de mot en dégradé */
+.hero h1 span, .lp-hero h1 span, .site-hero h1 span {
+  background: none; -webkit-background-clip: border-box; background-clip: border-box; color: inherit;
+}
+
+/* Menu latéral et barre du haut : vert très foncé (seul bloc sombre du site) */
+.sidebar, .navbar, .nav-menu.open .nav-links {
+  --text: #eaf1ec; --muted: #a9bfb2; --line: rgba(255,255,255,.16); --glass: rgba(255,255,255,.07);
+  background: var(--navy); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.brand .logo { background: var(--gold); color: #2a1f00; border-radius: 6px; font-family: var(--display); }
+.nav button { border-radius: 6px; }
+.nav button span { display: none; }                 /* plus d'émojis comme icônes */
+.nav button.active { background: rgba(255,255,255,.12); box-shadow: inset 3px 0 0 var(--gold); color: #fff; }
+.who { background: rgba(255,255,255,.07); border-radius: 6px; }
+
+/* Page d'accueil */
+.lp-badge { background: #fff7dc; border-color: #e6c75a; color: #5b4300; border-radius: 6px; }
+.lp-hero { text-align: left; }
+.lp-hero .lead, .lp-access { margin-left: 0; }
+.lp-cta-row, .lp-trust { justify-content: flex-start; }
+.badge { border-radius: 4px; }
+.cube, .scene { display: none; }                    /* le cube 3D de démonstration */
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* Pages « site vitrine » de l'école : le bleu générique devient le vert du thème */
+.logo-icon, .btn-signup { background-color: var(--cyan) !important; }
+.btn-signup:hover { background-color: var(--cyan-d) !important; }
+.dropdown-item .icon { background: #e8f3ed; }
+@media print { body { background: #fff; } }
+.navbar .brand, .sidebar .brand { color: var(--text); }
+.badge.blue { background: #e4eef6; color: #214f73; border-color: #b9d1e3; }
+.badge.green { background: #e1f1e8; color: #0b4630; border-color: #a9cdb9; }
+.badge.gold { background: #fbeab5; color: #5b4300; border-color: #e6c75a; }
+.badge.gray { background: #eef0ea; color: #3d4b44; border-color: var(--line); }
+/* Pastilles d'icônes en émoji retirées ; étiquettes en casse normale */
+.lp-problem .ico, .item.card .ico { display: none; }
+.lp-eyebrow, .lp-footer-grid h4 { text-transform: none; letter-spacing: 0; font-size: .9rem; }
