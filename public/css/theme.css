@@ -85,3 +85,6 @@ select option { background: #fff; color: var(--text); }
 /* Pastilles d'icônes en émoji retirées ; étiquettes en casse normale */
 .lp-problem .ico, .item.card .ico { display: none; }
 .lp-eyebrow, .lp-footer-grid h4 { text-transform: none; letter-spacing: 0; font-size: .9rem; }
+
+.navbar, .sidebar { color: var(--text); }
+.navbar .brand .name, .sidebar .brand .name { color: #eaf1ec; }
