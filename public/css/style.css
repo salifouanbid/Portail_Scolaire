@@ -292,7 +292,7 @@ td.num, th.num { text-align: center; }
 .brand-name {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #0fff0f;
 }
 .nav-links {
   display: flex;
